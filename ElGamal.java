@@ -11,7 +11,9 @@ import java.io.UnsupportedEncodingException;
 
 public class ElGamal {
 	public static void main(String[] args) throws Exception {
-		ElGamalKeyTriple output = encrypt("The cat sours the basil.");
+		String message = "The cat sours the basil";
+		System.out.println(message);
+		ElGamalKeyTriple output = encrypt(message);
 		String decryption = decrypt(output);
 		System.out.println(decryption);
 	}
@@ -42,15 +44,15 @@ public class ElGamal {
 		byte[] ciphertext = combineArrays(iv,encryption);
 		
 		KeyFactory keyFactory = KeyFactory.getInstance("DiffieHellman");
-		DHPublicKey dpk = (DHPublicKey)keyFactory.generatePublic(new DHPublicKeySpec(h,p,g));
-		DHPrivateKey dsk = (DHPrivateKey)keyFactory.generatePrivate(new DHPrivateKeySpec(b,p,g));
+		DHPublicKey dpk = (DHPublicKey)keyFactory.generatePublic(new DHPublicKeySpec(u,p,g));
+		DHPrivateKey dsk = (DHPrivateKey)keyFactory.generatePrivate(new DHPrivateKeySpec(a,p,g));
 		
 		return new ElGamalKeyTriple(ciphertext,dpk,dsk);
 	}
 	
 	public static String decrypt(ElGamalKeyTriple ekp) throws GeneralSecurityException {
 		byte[] iv = ekp.deriveIV();
-		byte[] cipher = ekp.deriveCiphertext();
+		byte[] cipher = ekp.deriveCiphertext();	
 		
 		KeyFactory keyFactory = KeyFactory.getInstance("DiffieHellman");
 		
@@ -59,9 +61,9 @@ public class ElGamal {
 		BigInteger publicKey = publicKeySpec.getY();
 		BigInteger privateKey = ekp.getPrivateKey().getX();
 		BigInteger p = publicKeySpec.getP();
-		BigInteger DHDecryptorKey = privateKey.modPow(publicKey,p);
+		BigInteger DHDecryptorKey = publicKey.modPow(privateKey,p);
 		
-		MessageDigest decryptionDigest = MessageDigest.getInstance("SHA-256");
+		MessageDigest decryptionDigest = MessageDigest.getInstance("SHA-256");		
 		byte[] keyDecryptionArray = decryptionDigest.digest(DHDecryptorKey.toByteArray());		
 		
 		Cipher decryptor = Cipher.getInstance("AES/CBC/PKCS5Padding");
