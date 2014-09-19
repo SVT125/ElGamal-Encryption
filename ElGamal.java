@@ -1,25 +1,29 @@
 // ElGamal encryption using SHA-256 to encrypt messages with AES, prepends the cipher text with the IV.
+// Mock program where the encryption method outputs both pk/sk where a is the public exponent, b the private exponent.
 
 import java.security.*;
 import javax.crypto.*;
+import javax.crypto.spec.*;
+import javax.crypto.interfaces.*;
 import java.util.*;
 import java.math.BigInteger;
-import javax.crypto.spec.SecretKeySpec;
-import javax.crypto.spec.IvParameterSpec;
-import java.nio.ByteOrder;
-import java.nio.ByteBuffer;
+import java.io.UnsupportedEncodingException;
 
-class ElGamal {
-	static int order = 2048;
+public class ElGamal {
 	public static void main(String[] args) throws Exception {
+		ElGamalKeyTriple output = encrypt("The cat sours the basil.");
+		String decryption = decrypt(output);
+		System.out.println(decryption);
+	}
+	
+	public static ElGamalKeyTriple encrypt(String message) throws GeneralSecurityException, UnsupportedEncodingException {
+		int order = 2048; // the order of bits
 		Random r = new Random();
 		BigInteger p = findPrimeSet(order, r);
-		System.out.println("Found p!");
 		BigInteger g = findGenerator(order, p, r);
-		System.out.println("Found g!");
 
 		BigInteger a = randomSetNumber(order,p,r), b = randomSetNumber(order,p,r);
-		BigInteger u = g.modPow(b,p); //sent to the decryptor
+		BigInteger u = g.modPow(b,p);
 		
 		BigInteger h = g.modPow(a,p);
 
@@ -32,31 +36,44 @@ class ElGamal {
 		SecretKeySpec encryptionKey = new SecretKeySpec(keyEncryptionArray,"AES");
 		encryptor.init(Cipher.ENCRYPT_MODE,encryptionKey);
 		
-		String message = "The cat sours the basil";
 		byte[] messageBytes = message.getBytes("UTF-8");
 		byte[] encryption = encryptor.doFinal(messageBytes);
 		byte[] iv = encryptor.getIV();
 		byte[] ciphertext = combineArrays(iv,encryption);
-		System.out.println("Message encrypted...");
 		
-		// Decryption
+		KeyFactory keyFactory = KeyFactory.getInstance("DiffieHellman");
+		DHPublicKey dpk = (DHPublicKey)keyFactory.generatePublic(new DHPublicKeySpec(h,p,g));
+		DHPrivateKey dsk = (DHPrivateKey)keyFactory.generatePrivate(new DHPrivateKeySpec(b,p,g));
 		
-		byte[] ivD = Arrays.copyOfRange(ciphertext,0,16); // assume 16 byte IV
-		byte[] encryptionD = Arrays.copyOfRange(ciphertext,16,ciphertext.length);
-		BigInteger DHDecryptorKey = u.modPow(a,p);
+		return new ElGamalKeyTriple(ciphertext,dpk,dsk);
+	}
+	
+	public static String decrypt(ElGamalKeyTriple ekp) throws GeneralSecurityException {
+		byte[] iv = ekp.deriveIV();
+		byte[] cipher = ekp.deriveCiphertext();
+		
+		KeyFactory keyFactory = KeyFactory.getInstance("DiffieHellman");
+		
+		DHPublicKeySpec publicKeySpec = keyFactory.getKeySpec(ekp.getPublicKey(), DHPublicKeySpec.class);
+		
+		BigInteger publicKey = publicKeySpec.getY();
+		BigInteger privateKey = ekp.getPrivateKey().getX();
+		BigInteger p = publicKeySpec.getP();
+		BigInteger DHDecryptorKey = privateKey.modPow(publicKey,p);
 		
 		MessageDigest decryptionDigest = MessageDigest.getInstance("SHA-256");
-		byte[] keyDecryptionArray = decryptionDigest.digest(DHEncryptorKey.toByteArray());		
+		byte[] keyDecryptionArray = decryptionDigest.digest(DHDecryptorKey.toByteArray());		
 		
 		Cipher decryptor = Cipher.getInstance("AES/CBC/PKCS5Padding");
 		SecretKeySpec decryptionKey = new SecretKeySpec(keyDecryptionArray,"AES");
-		encryptor.init(Cipher.DECRYPT_MODE,decryptionKey, new IvParameterSpec(ivD));
-		String decryption = new String(encryptor.doFinal(encryption));
-		System.out.println(decryption);
+		decryptor.init(Cipher.DECRYPT_MODE,decryptionKey, new IvParameterSpec(iv));
+		String decryption = new String(decryptor.doFinal(cipher));
+		
+		return decryption;
 	}
 	
 	// We generate an n-bit safe prime for algorithm 4.86 such that p = 2q + 1 is a prime.
-	public static BigInteger findPrimeSet(int n, Random r) {
+	private static BigInteger findPrimeSet(int n, Random r) {
 		BigInteger q = new BigInteger(n,r);
 		boolean isPrime = false;
 		BigInteger p = q.multiply(new BigInteger("2")).add(new BigInteger("1"));
@@ -75,7 +92,7 @@ class ElGamal {
 	// Finds the generator of the finite cyclic group mod n-bit prime, with specified certainty power for the Miller-Rabin primality test = 48.
 	// We use algorithm 4.86 from HAC to find the generator given that the prime generated is p = 2q + 1.
 	// The prime factorization of the group's order is 2q, so we do algorithm 4.80 checking powers 2 and q.	
-	public static BigInteger findGenerator(int n, BigInteger p, Random r) {
+	private static BigInteger findGenerator(int n, BigInteger p, Random r) {
 		boolean generatorFound = false;
 		BigInteger one = new BigInteger("1");
 		BigInteger q = p.subtract(one).divide(new BigInteger("2")); // recover q
@@ -91,7 +108,7 @@ class ElGamal {
 	}
 	
 	// Returns a random number of the set of elements {0,...,p-1} by generating n-bit numbers then checking if within the set.
-	public static BigInteger randomSetNumber(int n, BigInteger p, Random r) {
+	private static BigInteger randomSetNumber(int n, BigInteger p, Random r) {
 		BigInteger random;
 		while(true) {
 			random = new BigInteger(n,r);
@@ -101,7 +118,7 @@ class ElGamal {
 	}
 	
 	// Concatenates byte arrays together, in order of arguments listed.
-	public static byte[] combineArrays(byte[]... arrays) {
+	private static byte[] combineArrays(byte[]... arrays) {
 		int currentEndPos = arrays[0].length;
 		int totalLength = 0;
 		for( byte[] partial : arrays )
@@ -119,7 +136,7 @@ class ElGamal {
 		return result;
 	}
 	
-	public static byte[] xorPartials(byte[][] array) {
+	private static byte[] xorPartials(byte[][] array) {
 		byte[] xoredArray = array[0];
 		for( int i = 1; i < array.length; i++ ) {
 			for( int j = 0; j < array[0].length; j++ ) {
@@ -127,13 +144,29 @@ class ElGamal {
 			}
 		}
 		return xoredArray;
+	}	
+}
+
+class ElGamalKeyTriple {
+	private byte[] packet;
+	private DHPublicKey pk;
+	private DHPrivateKey sk;
+	
+	public ElGamalKeyTriple(byte[] packet, DHPublicKey dpk, DHPrivateKey dsk) {
+		this.packet = packet;
+		this.pk = dpk;
+		this.sk = dsk;
 	}
 	
-	/*
-	public BigInteger symmetricEncrypt( byte[] key, BigInteger message ) {
+	public byte[] deriveIV() { 
+ 		byte[] iv = Arrays.copyOfRange(this.packet,0,16); // assume 16 byte IV
+		return iv;
+	}
+	public byte[] deriveCiphertext() {
+		byte[] encryption = Arrays.copyOfRange(this.packet,16,this.packet.length);
+		return encryption;
 	}
 	
-	public BigInteger symmetricDecrypt( byte[] key, BigInteger cipher ) {
-	}
-	*/
+	public DHPublicKey getPublicKey() { return this.pk; }
+	public DHPrivateKey getPrivateKey() { return this.sk; }
 }
