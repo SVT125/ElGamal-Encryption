@@ -1,8 +1,11 @@
+// ElGamal encryption using SHA-256 to encrypt messages with AES, prepends the cipher text with the IV.
+
 import java.security.*;
 import javax.crypto.*;
 import java.util.*;
 import java.math.BigInteger;
 import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.spec.IvParameterSpec;
 import java.nio.ByteOrder;
 import java.nio.ByteBuffer;
 
@@ -21,11 +24,35 @@ class ElGamal {
 		BigInteger h = g.modPow(a,p);
 
 		BigInteger DHEncryptorKey = h.modPow(b,p);
+		
+		MessageDigest encryptionDigest = MessageDigest.getInstance("SHA-256");
+		byte[] keyEncryptionArray = encryptionDigest.digest(DHEncryptorKey.toByteArray());
+		
+		Cipher encryptor = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		SecretKeySpec encryptionKey = new SecretKeySpec(keyEncryptionArray,"AES");
+		encryptor.init(Cipher.ENCRYPT_MODE,encryptionKey);
+		
+		String message = "The cat sours the basil";
+		byte[] messageBytes = message.getBytes("UTF-8");
+		byte[] encryption = encryptor.doFinal(messageBytes);
+		byte[] iv = encryptor.getIV();
+		byte[] ciphertext = combineArrays(iv,encryption);
+		System.out.println("Message encrypted...");
+		
+		// Decryption
+		
+		byte[] ivD = Arrays.copyOfRange(ciphertext,0,16); // assume 16 byte IV
+		byte[] encryptionD = Arrays.copyOfRange(ciphertext,16,ciphertext.length);
 		BigInteger DHDecryptorKey = u.modPow(a,p);
 		
-		byte[] key = keyDerivation(DHEncryptorKey.toByteArray(),10,"salt".getBytes("UTF-8"));
+		MessageDigest decryptionDigest = MessageDigest.getInstance("SHA-256");
+		byte[] keyDecryptionArray = decryptionDigest.digest(DHEncryptorKey.toByteArray());		
 		
-		// to-do: encrypt the message, output from encryptor, etc.
+		Cipher decryptor = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		SecretKeySpec decryptionKey = new SecretKeySpec(keyDecryptionArray,"AES");
+		encryptor.init(Cipher.DECRYPT_MODE,decryptionKey, new IvParameterSpec(ivD));
+		String decryption = new String(encryptor.doFinal(encryption));
+		System.out.println(decryption);
 	}
 	
 	// We generate an n-bit safe prime for algorithm 4.86 such that p = 2q + 1 is a prime.
@@ -73,31 +100,7 @@ class ElGamal {
 		}	
 	}
 	
-	// Uses PBKDF2 to derive a longer 128-bit key for AES.
-	public static byte[] keyDerivation(byte[] shortKey, int iterations, byte[] salt) throws GeneralSecurityException {
-		int numPartials = 128/shortKey.length;
-		byte[] key = new byte[128];
-		byte[][] u = new byte[numPartials][];
-		Mac mac = Mac.getInstance("HmacSHA256");
-		
-		for( int i = 0; i < numPartials; i++ ) {
-			for( int j = 0; j < iterations-1; j++ ) {
-				mac.init(new SecretKeySpec(shortKey,"HMACSHA256"));
-				if( j == 0 ) {
-					ByteBuffer bb = ByteBuffer.wrap(ByteBuffer.allocate(4).putInt(i).array());
-					bb.order(ByteOrder.BIG_ENDIAN);
-					u[j] = mac.doFinal(combineArrays(salt,bb.array()));
-
-				} else
-					u[j] = mac.doFinal(u[j-1]);
-			}
-			byte[] t = xorPartials(u);
-			// copy the t partial into key
-			u = new byte[numPartials][];
-		}
-		return key;
-	}
-	
+	// Concatenates byte arrays together, in order of arguments listed.
 	public static byte[] combineArrays(byte[]... arrays) {
 		int currentEndPos = arrays[0].length;
 		int totalLength = 0;
