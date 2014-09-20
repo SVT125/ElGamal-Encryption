@@ -31,8 +31,7 @@ public class ElGamal {
 
 		BigInteger DHEncryptorKey = h.modPow(b,p);
 		
-		MessageDigest encryptionDigest = MessageDigest.getInstance("SHA-256");
-		byte[] keyEncryptionArray = encryptionDigest.digest(DHEncryptorKey.toByteArray());
+		byte[] keyEncryptionArray = hashKey(u.toByteArray(),DHEncryptorKey.toByteArray());
 		
 		Cipher encryptor = Cipher.getInstance("AES/CBC/PKCS5Padding");
 		SecretKeySpec encryptionKey = new SecretKeySpec(keyEncryptionArray,"AES");
@@ -62,9 +61,8 @@ public class ElGamal {
 		BigInteger privateKey = ekp.getPrivateKey().getX();
 		BigInteger p = publicKeySpec.getP();
 		BigInteger DHDecryptorKey = publicKey.modPow(privateKey,p);
-		
-		MessageDigest decryptionDigest = MessageDigest.getInstance("SHA-256");		
-		byte[] keyDecryptionArray = decryptionDigest.digest(DHDecryptorKey.toByteArray());		
+			
+		byte[] keyDecryptionArray = hashKey(publicKey.toByteArray(),DHDecryptorKey.toByteArray());	
 		
 		Cipher decryptor = Cipher.getInstance("AES/CBC/PKCS5Padding");
 		SecretKeySpec decryptionKey = new SecretKeySpec(keyDecryptionArray,"AES");
@@ -72,6 +70,20 @@ public class ElGamal {
 		String decryption = new String(decryptor.doFinal(cipher));
 		
 		return decryption;
+	}
+	
+	// Hashes the given arguments together with SHA-256.
+	private static byte[] hashKey(byte[]... values) throws NoSuchAlgorithmException {
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		byte[][] hashedValues = new byte[values.length][];
+		int hashLength = 0;
+		for( int i = 0; i < hashedValues.length; i++ ) {
+			byte[] hash = md.digest(values[i]);
+			hashedValues[i] = hash;
+			hashLength += hash.length;
+		}
+		byte[] finalHashArgument = combineArrays(hashedValues);
+		return md.digest(finalHashArgument);
 	}
 	
 	// We generate an n-bit safe prime for algorithm 4.86 such that p = 2q + 1 is a prime.
