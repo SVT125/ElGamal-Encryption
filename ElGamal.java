@@ -150,6 +150,7 @@ public class ElGamal {
 		return result;
 	}
 	
+	// XOR's all the arrays together.
 	protected static byte[] xorPartials(byte[][] array) {
 		byte[] xoredArray = array[0];
 		for( int i = 1; i < array.length; i++ ) {
