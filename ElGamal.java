@@ -73,7 +73,7 @@ public class ElGamal {
 	}
 	
 	// Hashes the given arguments together with SHA-256.
-	private static byte[] hashKey(byte[]... values) throws NoSuchAlgorithmException {
+	protected static byte[] hashKey(byte[]... values) throws NoSuchAlgorithmException {
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		byte[][] hashedValues = new byte[values.length][];
 		int hashLength = 0;
@@ -87,7 +87,7 @@ public class ElGamal {
 	}
 	
 	// We generate an n-bit safe prime for algorithm 4.86 such that p = 2q + 1 is a prime.
-	private static BigInteger findPrimeSet(int n, Random r) {
+	protected static BigInteger findPrimeSet(int n, Random r) {
 		BigInteger q = new BigInteger(n,r);
 		boolean isPrime = false;
 		BigInteger p = q.multiply(new BigInteger("2")).add(new BigInteger("1"));
@@ -106,7 +106,7 @@ public class ElGamal {
 	// Finds the generator of the finite cyclic group mod n-bit prime, with specified certainty power for the Miller-Rabin primality test = 48.
 	// We use algorithm 4.86 from HAC to find the generator given that the prime generated is p = 2q + 1.
 	// The prime factorization of the group's order is 2q, so we do algorithm 4.80 checking powers 2 and q.	
-	private static BigInteger findGenerator(int n, BigInteger p, Random r) {
+	protected static BigInteger findGenerator(int n, BigInteger p, Random r) {
 		boolean generatorFound = false;
 		BigInteger one = new BigInteger("1");
 		BigInteger q = p.subtract(one).divide(new BigInteger("2")); // recover q
@@ -122,7 +122,7 @@ public class ElGamal {
 	}
 	
 	// Returns a random number of the set of elements {0,...,p-1} by generating n-bit numbers then checking if within the set.
-	private static BigInteger randomSetNumber(int n, BigInteger p, Random r) {
+	protected static BigInteger randomSetNumber(int n, BigInteger p, Random r) {
 		BigInteger random;
 		while(true) {
 			random = new BigInteger(n,r);
@@ -132,7 +132,7 @@ public class ElGamal {
 	}
 	
 	// Concatenates byte arrays together, in order of arguments listed.
-	private static byte[] combineArrays(byte[]... arrays) {
+	protected static byte[] combineArrays(byte[]... arrays) {
 		int currentEndPos = arrays[0].length;
 		int totalLength = 0;
 		for( byte[] partial : arrays )
@@ -150,7 +150,7 @@ public class ElGamal {
 		return result;
 	}
 	
-	private static byte[] xorPartials(byte[][] array) {
+	protected static byte[] xorPartials(byte[][] array) {
 		byte[] xoredArray = array[0];
 		for( int i = 1; i < array.length; i++ ) {
 			for( int j = 0; j < array[0].length; j++ ) {
@@ -162,9 +162,9 @@ public class ElGamal {
 }
 
 class ElGamalKeyTriple {
-	private byte[] packet;
-	private DHPublicKey pk;
-	private DHPrivateKey sk;
+	protected byte[] packet;
+	protected DHPublicKey pk;
+	protected DHPrivateKey sk;
 	
 	public ElGamalKeyTriple(byte[] packet, DHPublicKey dpk, DHPrivateKey dsk) {
 		this.packet = packet;
